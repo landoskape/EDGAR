@@ -114,11 +114,18 @@ experiment_params:
   # Island graph for exploitation exchanges.
   exploitation_topology: [1, 2, 3, 4, 5, 6, 7, 0]
 
-  # Small model used for lightweight generation tasks.
-  tiny_lm_name: gemini-2.0-flash-lite
+  # LLMs for different tasks. Each can be a string or a list.
+  # If a list is provided, it is traversed in order by iteration.
+  model_llm: gemini-2.5-flash
+  param_est_llm: gemini-2.5-flash
+  jax_translator_llm: gemini-2.5-flash
+  linked_llm: gemini-2.5-flash
+
+  # Tiny model 
+  tiny_lm_name: gemini-2.5-flash 
 
   # Medium model used for normal generation tasks.
-  little_lm_name: gemini-2.0-flash
+  little_lm_name: gemini-2.5-flash
 
   # Large model used periodically for stronger proposals.
   large_lm_name: gemini-2.5-flash
