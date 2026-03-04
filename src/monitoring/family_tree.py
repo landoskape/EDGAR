@@ -639,7 +639,7 @@ def create_family_tree(generation_log_path, output_dir, n_islands):
                               image_base_dir=image_base_dir,
                               html_output_dir=output_dir)
     out_path_all = os.path.join(output_dir, "family_tree.html")
-    with open(out_path_all, "w") as f:
+    with open(out_path_all, "w", encoding="utf-8") as f:
         f.write(html_all)
     print(f"[family_tree] Wrote {out_path_all}")
 

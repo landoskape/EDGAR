@@ -2,6 +2,7 @@ import inspect
 import json
 import re
 import os
+import sys
 import logging
 import webbrowser
 import asyncio
@@ -56,9 +57,15 @@ def compute_initial_params(param_estimator, model, x, y) -> jnp.ndarray:
             Returns ``None`` when both estimator-based initialization and
             default-parameter fallback fail.
     """
-    @timeout_decorator.timeout(5, use_signals=True)
-    def _safe_estimate(pe, xi, yi):
-        return pe(xi, yi)
+    if sys.platform == "win32":
+        # On Windows, SIGALRM is unavailable and thread-based timeout can't
+        # pickle nested functions, so skip the timeout wrapper entirely.
+        def _safe_estimate(pe, xi, yi):
+            return pe(xi, yi)
+    else:
+        @timeout_decorator.timeout(5, use_signals=True)
+        def _safe_estimate(pe, xi, yi):
+            return pe(xi, yi)
 
     def _estimator_response_arg(yi):
         """
@@ -955,7 +962,8 @@ async def generate_new_parameter_estimator(current_island,
             with open(img_path, "rb") as f:
                 img_bytes = f.read()
         except Exception as e:
-            raise RuntimeError(f"Param-estimator image generation failed: {e}") from e
+            logging.warning(f"Param-estimator image generation failed: {e}")
+            img_bytes = None
 
         # Build refinement prompt using current estimator as the only parent
         refinement_df = pd.DataFrame({

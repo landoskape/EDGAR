@@ -1071,7 +1071,7 @@ def create_dynamic_progress_update(json_file: str, output_dir: str) -> None:
         edge_map=edge_map,
     )
     loss_path = os.path.join(output_dir, "progress_loss.html")
-    with open(loss_path, "w") as f:
+    with open(loss_path, "w", encoding="utf-8") as f:
         f.write(loss_html)
     logging.info("[progress_monitor] Wrote %s", loss_path)
 
@@ -1087,7 +1087,7 @@ def create_dynamic_progress_update(json_file: str, output_dir: str) -> None:
         L_0_raw=L_0_raw,
     )
     gd_path = os.path.join(output_dir, "progress_gd_effect.html")
-    with open(gd_path, "w") as f:
+    with open(gd_path, "w", encoding="utf-8") as f:
         f.write(gd_html)
     logging.info("[progress_monitor] Wrote %s", gd_path)
 
