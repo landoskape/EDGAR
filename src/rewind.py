@@ -702,3 +702,59 @@ class Rewind:
             )
         if self.loss_fn is None:
             raise RuntimeError("loss_fn not loaded from spec.")
+
+    # ------------------------------------------------------------------
+    # Saved image display
+    # ------------------------------------------------------------------
+
+    def show_fit_image(self, label: str | None = None, split: str = "train") -> "Rewind":
+        """Display the pre-rendered fit PNG stored in the family tree for *label*.
+
+        These are the same images shown in the family_tree.html sidebar.
+        If *label* is None, uses the currently selected model (``go_to`` label).
+
+        Args:
+            label: Family-tree label (e.g. ``"D18"``).  Defaults to the current label.
+            split: ``"train"`` or ``"test"``.
+        """
+        import matplotlib.pyplot as plt
+
+        if self._label_map is None:
+            raise RuntimeError("No run loaded.  Call load_previous_run() first.")
+
+        target_label = label or self._current_label
+        if target_label is None:
+            raise RuntimeError("No label given and no current model selected.  Call go_to() first.")
+
+        rec = self._label_map.get(target_label)
+        if rec is None:
+            raise KeyError(f"Label '{target_label}' not found.")
+
+        key = "train_fit_image_path" if split == "train" else "test_fit_image_path"
+        path_str = rec.get(key)
+
+        if not path_str:
+            print(f"[Rewind] No {split} fit image path stored for '{target_label}'.")
+            return self
+
+        import os
+        if not os.path.isfile(path_str):
+            print(f"[Rewind] Image file not found: {path_str}")
+            return self
+
+        img = plt.imread(path_str)
+        fig, ax = plt.subplots(figsize=(12, 12))
+        ax.imshow(img)
+        ax.axis("off")
+        loss = rec.get("train_loss")
+        loss_str = f"{loss:.4f}" if loss is not None else "n/a"
+        ax.set_title(
+            f"{split.capitalize()} fit — {target_label}  "
+            f"iter={rec.get('iteration_number')}  "
+            f"island={rec.get('birth_island')}  "
+            f"train_loss={loss_str}",
+            fontsize=12,
+        )
+        plt.tight_layout()
+        plt.show()
+        return self
