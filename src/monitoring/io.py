@@ -68,6 +68,52 @@ def build_record_entry(rec: dict) -> dict:
     }
 
 
+def island_letter(island_idx: int) -> str:
+    """Map island index to a letter label (0->A, 1->B, ..., 25->Z, 26->AA, ...)."""
+    if island_idx < 0:
+        return "S"
+    letters = []
+    idx = island_idx
+    while True:
+        idx, rem = divmod(idx, 26)
+        letters.append(chr(ord('A') + rem))
+        if idx == 0:
+            break
+        idx -= 1
+    return "".join(reversed(letters))
+
+
+def _make_node_id_for_label(iteration, island, batch):
+    """Create a unique string node ID from (iteration, island, batch)."""
+    return f"{iteration}_{island}_{batch}"
+
+
+def assign_node_labels(records: list[dict]) -> dict:
+    """Assign compact labels like A12 per island and S1/S2 for seeds.
+
+    Returns a dict mapping node_id strings to label strings (e.g. "A1", "D18", "S2").
+    """
+    label_map = {}
+    # Seed labels
+    for rec in records:
+        if rec.get("is_seed", False):
+            nid = _make_node_id_for_label(*record_key(rec))
+            label_map[nid] = f"S{int(rec.get('batch_index', 0)) + 1}"
+
+    # Per-island labels (birth order)
+    islands = sorted({rec.get("birth_island") for rec in records if rec.get("birth_island", -1) >= 0})
+    for island_idx in islands:
+        island_records = [
+            rec for rec in records
+            if rec.get("birth_island") == island_idx and rec.get("iteration_number", -1) >= 0
+        ]
+        island_records.sort(key=lambda r: (r.get("iteration_number", 0), r.get("batch_index", 0)))
+        for i, rec in enumerate(island_records, start=1):
+            nid = _make_node_id_for_label(*record_key(rec))
+            label_map[nid] = f"{island_letter(island_idx)}{i}"
+    return label_map
+
+
 def load_generation_log(log_path: str) -> list[dict]:
     """Load JSONL generation log; skip empty or malformed lines.
 

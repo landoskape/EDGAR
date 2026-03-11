@@ -1,0 +1,232 @@
+# ========================
+# Project Identity
+# ========================
+
+task: placefields_atl
+model_name: placefield_model
+
+
+# ========================
+# Data Defaults
+# ========================
+
+data_processing_params:
+  # data_path is unused (data comes from vrAnalysis session DB), but required by framework
+  data_path: null
+  random_seed: 42
+
+inputs:
+- name: position
+  description: "Position along the linear track (cm)"
+
+
+# ========================
+# Experiment Runtime
+# ========================
+
+experiment_params:
+  use_param_estimator: true
+  # Position range is inferred from data (track length varies by session)
+  x_min: null
+  x_max: null
+  n_bins: 100
+
+
+# ========================
+# Prompt Defaults
+# ========================
+
+prompts:
+  program_prompt:
+    base: 'You are an AI neuroscientist. The programs below are models of hippocampal
+      place cells recorded as an animal runs along a linear track.
+
+      The models are sorted from highest to lowest loss.
+
+      Your task is to create a new placefield model, placefield_model_v{next_version},
+      that has a lower loss than the models below.
+
+      *Analyze* the progression of the models, *generalize* the improvements, and
+      *create* a new model that is better than *all* previous models.
+
+      **Domain Knowledge:** Place cells fire selectively at specific locations ("place
+      fields") on a linear track.
+
+      A typical place field is a localized bump of activity spanning 10-40 cm of a
+      track that is ~150 cm long.
+
+      Some cells have multiple fields. Firing rates are non-negative and typically
+      bounded (0-20 Hz).
+
+      The baseline firing rate away from the field is near zero.
+
+      Avoid unbounded functions — always clip parameter arguments and model outputs
+      to physiologically plausible ranges.
+
+      '
+    explore: 'Use the models below as inspiration, but be *creative* and *invent*
+      something new.
+
+      Which features in the models below correlate with lower loss?
+
+      Find these features and *extrapolate* them. You should also *combine* features
+      from several models, and *experiment* with new ideas.
+
+      '
+    exploit: 'Use the models below as a *template* to create a new model.
+
+      Which features in the models below correlate with lower loss? Find these features
+      and *extrapolate* them.
+
+      Focus on *exploiting* the strengths of the existing models and *eliminating*
+      their weaknesses or *redundancies*.
+
+      You will be *penalized* for complexity, so make the new model as *simple* as
+      possible while still being better than the previous models.
+
+      '
+    image_analysis: '**Image Analysis Instructions:**
+
+      Attached are firing-rate-vs-position curves for several place cells.
+
+      The mean observed firing rate is plotted in **sky-blue**.
+
+      Models are overlaid in **green** (lower loss) and **red** (higher loss).
+
+
+      Analyse the models'' fits. Identify systematic weaknesses by observing patterns
+      across multiple cells:
+
+      * **Field Location:** Does the model place the field center correctly?
+
+      * **Field Width:** Are fields too broad or too narrow?
+
+      * **Field Shape:** Is the field symmetric, or does it have a sharp onset/offset?
+
+      * **Baseline:** Is the out-of-field baseline captured correctly (should be ~0)?
+
+      * **Multi-field cells:** Does the model fail for cells with more than one field?
+
+
+      Use this analysis to design a new model, `placefield_model_v{next_version}`,
+      that improves on the previous models.
+
+      '
+    code_guidelines: "**Code Generation Guidelines:**\n\n* Import any packages you\
+      \ use.\n* Do NOT include any text other than the code.\n* Each free parameter\
+      \ must be a separate keyword argument with a default value.\n* Do NOT use a\
+      \ `params` dict — each parameter is its own keyword arg.\n* Ensure all free\
+      \ parameters are numeric, not strings.\n* Clip free parameters to physiologically\
+      \ plausible ranges at the top of the function.\n* If using `np.exp()`, ALWAYS\
+      \ clip the argument: `np.exp(np.clip(x, -20, 20))`\n* IMPORTANT: Your code\
+      \ will be translated to JAX. Avoid boolean indexing (e.g., `array[condition]`),\
+      \ dynamic shapes, and control flow based on array values. Use `jnp.where()`\
+      \ instead of boolean indexing.\n"
+    function_signature: '**Function Signature:**
+
+
+      Your placefield model must have this signature:
+
+      ```
+
+      def placefield_model_v{next_version}(X, param1=default1, param2=default2, ...):
+
+      ```
+
+      where:
+
+      * `X` has shape `(n_features, n_obs)`. Use `pos = X[0]` to get the position
+      vector, shape `(n_obs,)`.
+
+      * Each free parameter is a **separate keyword argument** with a sensible default
+      value. Do NOT use a `params` dict.
+
+      * Return shape: `(n_obs,)` — the predicted firing rate at each observation.
+
+      '
+    docstring_guidelines: '**Docstring Guidelines:**
+
+      * Begin by listing parent models with descriptive names, e.g., `parent_model_1:
+      gaussian_placefield`, `parent_model_2: smooth_square_wave`.
+
+      * Do not refer to the current model as `placefield_model_v{next_version}`. Instead,
+      refer to it as "this model".
+
+      * Provide a simple equation for the model, including all free parameters.
+
+      * Include a brief description of how the model improves upon the previous models.
+
+      '
+  parameter_estimator:
+    base: 'You are an AI neuroscientist. Your task is to create a parameter estimator
+      function, parameter_estimator_v{next_version}, to estimate the free parameters
+      of the latest placefield model, placefield_model_v{next_version}.
+
+      Parameters should be estimated directly using statistical properties of the
+      observed firing-rate-vs-position curve (e.g., peak location, FWHM, baseline).
+
+      *Analyze* the progression of the parameter estimators and *create* a new one
+      that is better than *all* previous estimators.
+
+      '
+    refinement_image_instructions: |
+      Image instructions:
+      - Compare predicted place fields to observed tuning curves across multiple cells.
+      - Identify mismatches in field center, width, amplitude, and baseline.
+      - Adjust parameter estimation to correct consistent biases seen across cells.
+      - Base changes on repeated patterns, not single-cell outliers.
+    code_guidelines: "**Code Generation Guidelines:**\n\n* Import any packages you\
+      \ use.\n* Do not include any text other than the code.\n* Return a numpy array\
+      \ of estimated parameter values, in the same order as the model's keyword arguments.\n\
+      * For example, if the model is `model(X, baseline=0.0, amplitude=1.0, mu=50.0)`,\
+      \ return `np.array([baseline_est, amplitude_est, mu_est])`.\n* The only arguments\
+      \ to the function should be the inputs (X) and the firing rates (Y).\n* `X`\
+      \ has shape `(n_features, n_obs)`; get position centers via `pos = X[0]`.\n\
+      * `Y` has shape `(n_obs,)` or `(1, n_obs)`; if 2D, use `Y[0]` to get the firing\
+      \ rate vector.\n* Your response **must** be less than {max_lines} lines (including\
+      \ imports). If it is longer, it will be immediately rejected.\n* Do not use complex\
+      \ fitting functions like `curve_fit`, `least_squares` or `minimize`.\n"
+    function_signature: '**Function Signature:**
+
+
+      Your parameter estimator must have this signature:
+
+      ```
+
+      def parameter_estimator_v{next_version}(X, Y):
+
+      ```
+
+      where:
+
+      * `X` has shape `(n_features, n_obs)`; `pos = X[0]` gives position centers.
+
+      * `Y` has shape `(n_obs,)` or `(1, n_obs)` — firing rates. If 2D, use `Y[0]`.
+
+      * Return: a numpy array of estimated parameter values, in the same positional
+      order as the model''s keyword arguments.
+
+      '
+    docstring_guidelines: '**Docstring Guidelines:**
+
+      * Begin by listing parent estimators with descriptive names.
+
+      * Do not refer to the current estimator as `parameter_estimator_v{next_version}`.
+      Instead, refer to it as "this estimator".
+
+      * Briefly describe the estimation strategy (e.g., FWHM for sigma, peak position
+      for mu).
+
+      '
+  jax_translator_prompt: "Convert the following function to a JAX-compatible function.\n\
+    \n  Include all necessary imports, and ensure that the function is compatible\
+    \ with JAX transformations like `jax.jit`, `jax.grad`, and `jax.vmap`.\n\n  CRITICAL\
+    \ JAX compatibility requirements:\n  * Replace all boolean indexing (e.g., `array[condition]`)\
+    \ with `jnp.where(condition, true_value, false_value)`\n  * Replace NumPy functions\
+    \ with JAX equivalents (np.array \u2192 jnp.array, np.exp \u2192 jnp.exp, etc.)\n\
+    \  * Avoid Python control flow (if/for) that depends on array values - use `jnp.where`,\
+    \ `jax.lax.cond`, `jax.lax.scan` instead\n  * Do not use dynamic array shapes\
+    \ or indexing with non-constant indices\n  * Use `jnp.clip()` instead of boolean\
+    \ masking for bounds\n  * `np.tile` \u2192 `jnp.tile`\n\n  Do not include any\
+    \ text other than the code.\n  Update the function name to be the original name\
+    \ without \"_v*\".\n  Here is the code to translate:\n  {function_code}\n"
