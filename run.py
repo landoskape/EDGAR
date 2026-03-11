@@ -498,6 +498,8 @@ async def _run_many(test_mode: bool = False, config_path: str = "config.yaml", v
             open_family_tree=params.get('open_family_tree', False),
             loss_fn=loss_fn,
             random_seed=random_seed,
+            task_name=task_name,
+            config=config,
         )
         # Save split/data summary from preprocessed run-level data.
         save_data_summary(

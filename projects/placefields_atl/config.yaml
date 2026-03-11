@@ -72,18 +72,6 @@ prompts:
       Find these features and *extrapolate* them. You should also *combine* features
       from several models, and *experiment* with new ideas.
 
-      Consider different formulations for localized place fields:
-
-      * Single Gaussian (one field, symmetric)
-
-      * Asymmetric Gaussian (steeper on one edge)
-
-      * Smooth square wave (flat top, sharp edges via logistic functions)
-
-      * Sum of multiple Gaussians (multi-field cells)
-
-      * Von Mises or other peaked distributions
-
       '
     exploit: 'Use the models below as a *template* to create a new model.
 
@@ -92,9 +80,6 @@ prompts:
 
       Focus on *exploiting* the strengths of the existing models and *eliminating*
       their weaknesses or *redundancies*.
-
-      Are the parameter ranges correct (field center, width, amplitude, baseline)?
-      If not, adjust them to be more appropriate for a ~200 cm linear track.
 
       You will be *penalized* for complexity, so make the new model as *simple* as
       possible while still being better than the previous models.
@@ -124,23 +109,19 @@ prompts:
 
 
       Use this analysis to design a new model, `placefield_model_v{next_version}`,
-      that improves on the previous models. For every change you make, link it explicitly
-      to a cell or pattern in the plot.
+      that improves on the previous models.
 
       '
     code_guidelines: "**Code Generation Guidelines:**\n\n* Import any packages you\
       \ use.\n* Do NOT include any text other than the code.\n* Each free parameter\
-      \ must be a separate keyword argument with a default value, e.g.:\n  `def placefield_model_v3(X,\
-      \ baseline=0.0, amplitude=1.0, mu=50.0, sigma=10.0):`\n* Do NOT use a `params`\
-      \ dict — each parameter is its own keyword arg.\n* Ensure all free parameters\
-      \ are numeric, not strings.\n* At the beginning of the code, clip free parameters\
-      \ to plausible ranges, e.g.:\n  - `mu = np.clip(mu, 0, 200)` for field center\
-      \ (track is ~0-150 cm)\n  - `sigma = np.clip(sigma, 1.0, 50.0)` for field width\n\
-      \  - `amplitude = np.clip(amplitude, 0, 50)`\n  - `baseline = np.clip(baseline,\
-      \ 0, 10)`\n* If using `np.exp()`, ALWAYS clip the argument: `np.exp(np.clip(x,\
-      \ -20, 20))`\n* IMPORTANT: Your code will be translated to JAX. Avoid boolean\
-      \ indexing (e.g., `array[condition]`), dynamic shapes, and control flow based\
-      \ on array values. Use `jnp.where()` instead of boolean indexing.\n"
+      \ must be a separate keyword argument with a default value.\n* Do NOT use a\
+      \ `params` dict — each parameter is its own keyword arg.\n* Ensure all free\
+      \ parameters are numeric, not strings.\n* Clip free parameters to physiologically\
+      \ plausible ranges at the top of the function.\n* If using `np.exp()`, ALWAYS\
+      \ clip the argument: `np.exp(np.clip(x, -20, 20))`\n* IMPORTANT: Your code\
+      \ will be translated to JAX. Avoid boolean indexing (e.g., `array[condition]`),\
+      \ dynamic shapes, and control flow based on array values. Use `jnp.where()`\
+      \ instead of boolean indexing.\n"
     function_signature: '**Function Signature:**
 
 

@@ -85,9 +85,10 @@ def load_and_process_data(
     placefield = placefield.filter_by_environment(best_env)
     placefield_data = placefield.placefield.transpose(2, 1, 0) # (num_neurons, num_positions, num_trials)
 
-    _max_neuron = np.max(placefield_data, axis=(1, 2), keepdims=True)
-    _max_neuron[_max_neuron == 0] = 1
-    placefield_data /= _max_neuron
+    # Normalize by std in placefield data
+    _std_neuron = np.std(placefield_data, axis=(1, 2), keepdims=True)
+    _std_neuron[_std_neuron == 0] = 1
+    placefield_data /= _std_neuron
 
     # placefield.placefield is (num_trials, num_positions, num_neurons)
     dist_centers = edge2center(dist_edges)[None, :, None]
@@ -112,14 +113,66 @@ def train_test_split(
     """
     Return train sample indices and train trial indices.
     """
+    spks_type = "oasis"
+    session = sessiondb.iter_sessions(imaging=True, session_params=dict(spks_type=spks_type))[40] # 40 is a "good" session
+
+    env_stats = session.env_stats
+    best_env = max(env_stats, key=env_stats.get)
+
+    # Get frame_behavior of session
+    frame_behavior = get_frame_behavior(session)
+
+    # Filter frame behavior
+    speed_threshold = 1.0
+    idx_fast = frame_behavior.speed > speed_threshold
+    idx_valid_frames = frame_behavior.valid_frames()
+    idx_keep = idx_valid_frames & idx_fast
+    frame_behavior = frame_behavior.filter(idx_keep)
+    idx_to_spks = np.where(idx_keep)[0]
+
+    num_bins = 100
+    dist_edges = np.linspace(0, session.env_length[0], num_bins + 1)
+
+    # Choose neurons based on good placefield properties
+    spks = session.spks[:, session.idx_rois]
+    reliability_threshold = 0.3
+    fraction_active_threshold = 0.05
+    _all_trials = get_placefield(spks, frame_behavior, dist_edges, average=False, idx_to_spks=idx_to_spks, use_fast_sampling=True, session=session).filter_by_environment(best_env)
+    _pf_data = np.transpose(_all_trials.placefield, (2, 0, 1))
+    _reliable = reliability_loo(_pf_data)
+    _fraction_active = FractionActive.compute(
+        _pf_data,
+        activity_axis=2,
+        fraction_axis=1,
+        activity_method="rms",
+        fraction_method="participation",
+    )
+    _idx_reliable = _reliable > reliability_threshold
+    _idx_fraction_active = _fraction_active > fraction_active_threshold
+    idx_keep = _idx_reliable & _idx_fraction_active
+    spks = spks[:, idx_keep]
+        
+    # Get placefield data
+    placefield = get_placefield(spks, frame_behavior, dist_edges, average=False, idx_to_spks=idx_to_spks, use_fast_sampling=True, session=session)
+    placefield = placefield.filter_by_environment(best_env)
+    placefield_data = placefield.placefield.transpose(2, 1, 0) # (num_neurons, num_positions, num_trials)
+    
+    # For some reason X needs to match shape of Y
+    num_trials = placefield_data.shape[2]
+    T = np.repeat(np.arange(num_trials)[None, :], len(dist_edges) - 1, axis=0)
+    T = T.reshape(-1)
+
+    # Cross validate obs by trials
     n_samples, _, n_obs = X.shape
+    assert n_obs == T.shape[0], "Inferred trial array not match observations in X"
     assert n_samples >= 2, "Need at least 2 samples for model optimization/eval"
     assert n_obs >= 2, "Need at least 2 observations for parameter optimization/eval"
 
     rng = np.random.default_rng(random_seed)
     train_samples = rng.choice(np.arange(n_samples), n_samples // 2, replace=False)
-    train_trials = rng.choice(np.arange(n_obs), n_obs // 2, replace=False)
-    return train_samples, train_trials
+    train_trials = rng.choice(np.arange(num_trials), num_trials // 2, replace=False)
+    train_obs = np.isin(T, train_trials)
+    return train_samples, train_obs
 
 
 # ========================

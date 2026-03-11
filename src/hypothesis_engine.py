@@ -1218,10 +1218,12 @@ async def hypothesis_engine(
         use_large_every = 3, max_iter = 1_000, learning_rate = 3e-3,
         numpy_programs = None, param_estimators = None,
         X = None, Y = None, X_eval = None,
-        plot_model_fits = None, loss_fn = None, 
+        plot_model_fits = None, loss_fn = None,
         prompt_manager = None, trial_batch_size = None, swear_words = None,
         open_family_tree = False,
         random_seed = 42, # consider setting up a seed_manager to make behaviours more robustly reproducible.
+        task_name: str = "",
+        config: dict = None,
         ):
     """
     Run the full island-based hypothesis search loop.
@@ -1379,6 +1381,17 @@ async def hypothesis_engine(
     print("Created param-est vs gd folder:", image_param_est_vs_gd_dir)
     print("Created param-est refinement folder:", image_param_est_refine_dir)
     print("Created family tree fits folder:", image_family_tree_fits_dir)
+
+    # Save run_config.json for Rewind inspection
+    run_config_data = {
+        "task_name": task_name,
+        "spec_path": f"projects/{task_name}/spec.py" if task_name else "",
+        "config": config or {},
+        "date_stamp": date_stamp,
+        "time_stamp": time_stamp,
+    }
+    with open(os.path.join(full_dir, "run_config.json"), "w") as _f:
+        json.dump(run_config_data, _f, indent=2, default=str)
 
     # Initialize generation log for family tree data capture
     generation_log_path = os.path.join(full_dir, 'program_generation_log.jsonl')

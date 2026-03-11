@@ -11,7 +11,7 @@ from collections import defaultdict
 
 import networkx as nx
 
-from .io import load_generation_log, escape, resolve_image_path, build_record_entry, record_key, parse_parent_key
+from .io import load_generation_log, escape, resolve_image_path, build_record_entry, record_key, parse_parent_key, assign_node_labels, island_letter
 
 
 def _make_node_id(iteration, island, batch):
@@ -105,42 +105,12 @@ def _compute_hierarchical_layout(G, records_by_id, island_gap=1.5):
     return pos
 
 
-def _island_letter(island_idx: int) -> str:
-    """Map island index to a letter label (0->A, 1->B, ..., 25->Z, 26->AA, ...)."""
-    if island_idx < 0:
-        return "S"
-    letters = []
-    idx = island_idx
-    while True:
-        idx, rem = divmod(idx, 26)
-        letters.append(chr(ord('A') + rem))
-        if idx == 0:
-            break
-        idx -= 1
-    return "".join(reversed(letters))
-
-
 def _assign_node_labels(records):
-    """Assign compact labels like A12 per island and S1/S2 for seeds."""
-    label_map = {}
-    # Seed labels
-    for rec in records:
-        if rec.get("is_seed", False):
-            nid = _make_node_id(*record_key(rec))
-            label_map[nid] = f"S{int(rec.get('batch_index', 0)) + 1}"
+    """Assign compact labels like A12 per island and S1/S2 for seeds.
 
-    # Per-island labels (birth order)
-    islands = sorted({rec.get("birth_island") for rec in records if rec.get("birth_island", -1) >= 0})
-    for island_idx in islands:
-        island_records = [
-            rec for rec in records
-            if rec.get("birth_island") == island_idx and rec.get("iteration_number", -1) >= 0
-        ]
-        island_records.sort(key=lambda r: (r.get("iteration_number", 0), r.get("batch_index", 0)))
-        for i, rec in enumerate(island_records, start=1):
-            nid = _make_node_id(*record_key(rec))
-            label_map[nid] = f"{_island_letter(island_idx)}{i}"
-    return label_map
+    Delegates to io.assign_node_labels (same node-ID format as _make_node_id).
+    """
+    return assign_node_labels(records)
 
 
 def _loss_to_color(loss, min_loss, max_loss):
@@ -174,7 +144,7 @@ def _build_sidebar_data(records_by_id):
         entry.update({
             "id": node_id,
             "display_label": rec.get("display_label"),
-            "island_label": _island_letter(rec.get("birth_island", -1)),
+            "island_label": island_letter(rec.get("birth_island", -1)),
             "test_loss": rec.get("test_loss"),
             "parent1_id": _parse_parent_id(rec.get("parent1_id")),
             "parent2_id": _parse_parent_id(rec.get("parent2_id")),
