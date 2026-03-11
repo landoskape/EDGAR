@@ -171,7 +171,7 @@ def train_test_split(
     rng = np.random.default_rng(random_seed)
     train_samples = rng.choice(np.arange(n_samples), n_samples // 2, replace=False)
     train_trials = rng.choice(np.arange(num_trials), num_trials // 2, replace=False)
-    train_obs = np.isin(T, train_trials)
+    train_obs = np.where(np.isin(T, train_trials))[0]
     return train_samples, train_obs
 
 
