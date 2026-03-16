@@ -115,13 +115,16 @@ experiment_params:
   exploitation_topology: [1, 2, 3, 4, 5, 6, 7, 0]
 
   # Small model used for lightweight generation tasks.
-  tiny_lm_name: gemini-2.5-flash
+  tiny_lm_name: gemini-2.0-flash-lite
 
   # Medium model used for normal generation tasks.
-  little_lm_name: gemini-2.5-flash
+  little_lm_name: gemini-2.0-flash
 
   # Large model used periodically for stronger proposals.
   large_lm_name: gemini-2.5-flash
+
+  # Fallback lm name used in case specific lm's requested aren't available
+  fallback_lm_name: gemini-2.5-flash
 
   # Use large model every N iterations.
   use_large_every: 3

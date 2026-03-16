@@ -1,6 +1,9 @@
+import os
 import time
 import datetime
+from dotenv import load_dotenv
 import logging
+import asyncio
 from typing import Union, Optional, List, Any, Callable
 # gemini client
 from google import genai
@@ -566,6 +569,81 @@ async def dnu_switch_gemini_model(
         history=current_history,
     )
     return new_chat
+
+
+
+async def check_model(client: genai.Client, model_name: str) -> bool:
+    """
+    Check if specified model is available in the GenAI client.
+    
+    Some LMs may not be available to all users or may require special access. This function attempts
+    to generate a simple response using the specified model to verify its availability. If a model is
+    found to be unavailable, the config will use a fallback option that (we think) should be available
+    to everyone. 
+
+    Args:
+        client: An instance of genai.Client.
+        model_name: The name of the model to check (e.g., "gemini-2.5-flash").
+
+    Returns:
+        A tuple of (model_name, is_available, error_message). is_available is True if the model can generate a response, False otherwise.
+        error_message contains the exception message if an error occurred, or None if the model is available.
+    """
+    try:
+        await client.aio.models.generate_content(
+            model=model_name,
+            contents="Say 'hello world'.",
+        )
+        return model_name, True, None
+    except Exception as e:
+        return model_name, False, str(e)
+
+async def validate_models(config: dict) -> List[bool]:
+    """Check a list of model names for availability and return a list of valid models.
+
+    Args:
+        config: A dictionary containing the run config with model names to validate.
+    Returns:
+        A list of booleans indicating whether each model is available and can generate a response.
+    """
+    load_dotenv()
+    client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
+
+    experiment_params: dict = config.get("experiment_params", {})
+    if not experiment_params:
+        logging.info("No experiment_params found in config, skipping model availability check.")
+        return config
+    
+    logging.info("="*80)
+    logging.info("VALIDATING MODEL AVAILABILITY")
+    logging.info("="*80)
+    model_keys = dict(
+        tiny_lm_name=experiment_params.get("tiny_lm_name", None),
+        little_lm_name=experiment_params.get("little_lm_name", None),
+        large_lm_name=experiment_params.get("large_lm_name", None),
+    )
+    fallback = experiment_params.get("fallback_lm_name", None)
+    unique_models = set(v for v in model_keys.values() if v)
+    results = await asyncio.gather(*[check_model(client, name) for name in unique_models])
+    availability = {name: (available, error) for name, available, error in results}
+    for config_key, model_name in model_keys.items():
+        if not model_name:
+            continue
+        available, error = availability[model_name]
+        if available:
+            print(f"[validate_models] {model_name} OK")
+        else:
+            print(f"[validate_models] {model_name} FAILED: {error}")
+            if fallback:
+                print(f"  -> falling back to {fallback} for '{config_key}'")
+                config["experiment_params"][config_key] = fallback
+            else:
+                print(
+                    f"Model '{model_name}' (config key: '{config_key}') is unavailable "
+                    f"and no fallback_model_name is set. Error: {error}"
+                )
+    return config
+
 
 # ---------------------------------------------------------------
 # legacy functions 

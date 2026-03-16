@@ -11,6 +11,7 @@ from src.validate_spec import validate_spec
 from src.prompt_manager import PromptManager
 from src.data_structures import Inputs, Outputs, ensure_inputs, ensure_outputs
 from src.data_summary import save_data_summary
+from src.llm_helper import validate_models
 
 
 def deep_merge(base: dict, override: dict) -> dict:
@@ -341,6 +342,9 @@ async def _run_many(test_mode: bool = False, config_path: str = "config.yaml", v
     
     # Load config with DEFAULT fallbacks
     config = load_config_with_defaults(config_path, project_root)
+
+    # Validate model choices in config
+    config = await validate_models(config)
 
     # Extract hyperparameters
     params = config.get('experiment_params', {})
