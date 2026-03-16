@@ -643,7 +643,7 @@ async def call_llm_async(
             
             return resp.text
         except Exception as e:
-            print(f"Error in GenAI async call: {e}")
+            print(f"Error in GenAI async call: {type(e).__name__}: {e!r}")
             return None
     else:
         try:
