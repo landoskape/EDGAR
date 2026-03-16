@@ -147,7 +147,8 @@ class Rewind:
         self.param_est_code = None
 
         self.initial_params = None
-        self.optimized_params = None
+        self.optimized_params = None        # fitted on train samples
+        self.test_optimized_params = None   # fitted on test samples
         self.train_loss = None
         self.test_loss = None
 
@@ -392,35 +393,49 @@ class Rewind:
         self.param_est_code = rec.get("param_est_code")
 
         # Exec model code — prefer JAX, fall back to numpy
-        model_name = self._infer_model_name(self.model_code_jax or self.model_code_np)
+        model_name = self._infer_model_name(self.model_code_jax or self.model_code_np, prefix="model")
         self.model_jax = str_to_func(self.model_code_jax, model_name) if self.model_code_jax else None
         self.model_np = str_to_func(self.model_code_np, model_name) if self.model_code_np else None
         if self.model_jax is None and self.model_np is not None:
             print(f"[Rewind] No JAX code for {label}; using numpy model (optimize_params may fail).")
 
-        pe_name = self._infer_model_name(self.param_est_code)
+        pe_name = self._infer_model_name(self.param_est_code, prefix="param_est")
         self.param_estimator = str_to_func(self.param_est_code, pe_name) if self.param_est_code else None
 
         # Reset computed state
         self.initial_params = None
         self.optimized_params = None
+        self.test_optimized_params = None
         self.train_loss = None
         self.test_loss = None
 
         return self
 
     @staticmethod
-    def _infer_model_name(code: str | None) -> str:
-        """Extract the first 'def <name>' from a code string."""
+    def _infer_model_name(code: str | None, prefix: str | None = None) -> str:
+        """Extract the main function name from a code string.
+
+        Scans top-level (unindented) ``def`` statements.  If *prefix* is
+        given, returns the last name that starts with that prefix (e.g.
+        ``"model"``, ``"param_est"``).  Falls back to the last top-level
+        def so that helper functions defined before the main function are
+        not accidentally selected.
+        """
         if not code:
-            return "model"
+            return prefix or "model"
+        candidates = []
         for line in code.splitlines():
-            line = line.strip()
-            if line.startswith("def "):
+            if line.startswith("def "):  # top-level only (no leading whitespace)
                 name = line[4:].split("(")[0].strip()
                 if name:
-                    return name
-        return "model"
+                    candidates.append(name)
+        if not candidates:
+            return prefix or "model"
+        if prefix:
+            prefixed = [n for n in candidates if n.startswith(prefix)]
+            if prefixed:
+                return prefixed[-1]
+        return candidates[-1]
 
     # ------------------------------------------------------------------
     # Parameter estimation & optimization
@@ -505,7 +520,7 @@ class Rewind:
         x = self.X_split[1]
         y = self.Y_split[1]
 
-        _, _, test_loss, _ = objective(
+        _, _, test_loss, test_optimized_params = objective(
             model,
             self.param_estimator,
             x=x,
@@ -514,6 +529,7 @@ class Rewind:
             fit_params=True,
         )
 
+        self.test_optimized_params = test_optimized_params
         self.test_loss = float(test_loss)
         return self
 
@@ -543,9 +559,15 @@ class Rewind:
             print("[Rewind] No plot_model_fits found in spec.  Cannot plot.")
             return self
 
-        params = self.optimized_params if self.optimized_params is not None else self.initial_params
+        if split == "train":
+            params = self.optimized_params if self.optimized_params is not None else self.initial_params
+        else:
+            params = self.test_optimized_params
         if params is None:
-            raise RuntimeError("No params available.  Call estimate_params() or optimize_params() first.")
+            raise RuntimeError(
+                f"No params available for split='{split}'.  "
+                + ("Call optimize_params() first." if split == "train" else "Call evaluate_test() first.")
+            )
 
         if save_path is None:
             plots_dir = os.path.join(self._run_dir, "rewind_plots")
@@ -576,7 +598,9 @@ class Rewind:
         loss_col = self.train_loss if split == "train" else self.test_loss
         losses = np.full(n_samples, loss_col) if loss_col is not None else None
 
-        programs_list = [{"model": model, "params": np.asarray(params[:n_samples]), "losses": losses}]
+        programs_list = [{"model": model, "params": np.asarray(params[:n_samples])}]
+        if losses is not None:
+            programs_list[0]["losses"] = losses
 
         try:
             self.plot_fn(
