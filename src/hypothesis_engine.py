@@ -85,18 +85,23 @@ def compute_initial_params(param_estimator, model, x, y) -> jnp.ndarray:
 
     params_list = []
     n_samples = y.shape[0]
+    n_params = defaults.shape[1]
     for i in range(n_samples):
         try:
             # any call taking >5s will raise timeout_decorator.TimeoutError
             # xi has shape (n_features, n_trials)
             # yi has shape (n_trials,) for scalar or (n_targets, n_trials) for vectorized
             params_i = _safe_estimate(param_estimator, x[i], _estimator_response_arg(y[i]))
+            params_i = np.asarray(params_i).ravel()
+            if params_i.shape != (n_params,):
+                logging.warning(f"param_estimator returned shape {params_i.shape} for sample {i}, expected ({n_params},); using defaults")
+                params_i = np.asarray(defaults[0])
         except timeout_decorator.TimeoutError:
             logging.warning(f"param_estimator timed out for sample {i}, using defaults")
-            params_i = defaults[0]
+            params_i = np.asarray(defaults[0])
         except Exception as e:
             logging.info(f"Error during parameter estimation for sample {i}: {e}")
-            params_i = defaults[0]
+            params_i = np.asarray(defaults[0])
         params_list.append(params_i)
 
     return jnp.array(params_list)
@@ -1023,15 +1028,22 @@ async def generate_new_parameter_estimator(current_island,
             logging.info("Failed to parse refined parameter estimator; keeping current.")
             continue
 
-        new_loss, _, _, _ = objective(
-            model=model_fn,
-            param_estimator=new_func,
-            x=x,
-            y=y,
-            loss_fn=loss_fn,
-            fit_params=False,  # Don't fit parameters during refinement evaluation
-            param_penalty_weight=param_penalty_weight,
-        )
+        try:
+            new_loss, _, _, _ = objective(
+                model=model_fn,
+                param_estimator=new_func,
+                x=x,
+                y=y,
+                loss_fn=loss_fn,
+                fit_params=False,  # Don't fit parameters during refinement evaluation
+                param_penalty_weight=param_penalty_weight,
+            )
+        except Exception as e:
+            logging.warning(
+                f"Param-est refinement objective failed (iter={iter_label}, island={island_id}, "
+                f"batch={batch_id}, round={r+1}): {e}\nOffending estimator code:\n{new_code}"
+            )
+            continue
 
         logging.info(
             f"Param-est refinement eval (iter={iter_label}, island={island_id}, "
