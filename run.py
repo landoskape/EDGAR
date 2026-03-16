@@ -7,6 +7,7 @@ import os, argparse
 import inspect
 import numpy as np
 from src import hypothesis_engine, utils
+from src.validate_spec import validate_spec
 from src.prompt_manager import PromptManager
 from src.data_structures import Inputs, Outputs, ensure_inputs, ensure_outputs
 from src.data_summary import save_data_summary
@@ -357,6 +358,18 @@ async def _run_many(test_mode: bool = False, config_path: str = "config.yaml", v
             f"Could not import {spec_module_path}. Expected file projects/{task_name}/spec.py with required functions."
         ) from e
 
+    if validate_mode:
+        success = validate_spec(
+            spec_module=spec_module,
+            config=config,
+            data_processing_params=data_processing_params,
+            load_and_process_data_fn=load_and_process_data_fn,
+            train_test_split_fn=train_test_split_fn,
+            loss_fn=loss_fn,
+            plot_model_fits_fn=plot_model_fits_fn,
+        )
+        sys.exit(0 if success else 1)
+
     models = [getattr(spec_module, 'model_v1'), getattr(spec_module, 'model_v2')]
     param_estimators = [getattr(spec_module, 'param_est_v1'), getattr(spec_module, 'param_est_v2')]
 
@@ -387,19 +400,6 @@ async def _run_many(test_mode: bool = False, config_path: str = "config.yaml", v
 
     raw_loss_fn = spec_loss_fn
     loss_fn = _build_loss_fn(raw_loss_fn)
-
-    if validate_mode:
-        from src.validate_spec import validate_spec
-        success = validate_spec(
-            spec_module=spec_module,
-            config=config,
-            data_processing_params=data_processing_params,
-            load_and_process_data_fn=load_and_process_data_fn,
-            train_test_split_fn=train_test_split_fn,
-            loss_fn=loss_fn,
-            plot_model_fits_fn=plot_model_fits_fn,
-        )
-        sys.exit(0 if success else 1)
 
     # Initialize prompt manager with merged config (includes DEFAULT prompts)
     prompt_manager = PromptManager(config=config)
